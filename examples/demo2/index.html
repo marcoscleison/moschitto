@@ -1,0 +1,22 @@
+<html>
+<head>
+  <title>test Ws mqtt.js</title>
+</head>
+<body>
+<script src="mqtt.js"></script>
+<script>
+  var client = mqtt.connect("ws://localhost:8081"); // you add a ws:// url here
+  client.subscribe("/data/hello")
+
+  client.on("message", function (topic, payload) {
+    //alert([topic, payload].join(": "))
+    console.log("Topic: ",topic);
+    var str = new TextDecoder("utf-8").decode(payload);
+    console.log("Payload: ",str);
+    //client.end()
+  })
+
+  //client.publish("mqtt/demo", "hello world!")
+</script>
+</body>
+</html>

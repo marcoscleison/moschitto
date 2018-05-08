@@ -30,6 +30,19 @@ proc my_connect_callback(mosq:c_ptr(mosquitto), userdata:c_void_ptr, result:c_in
 }
 
 proc my_message_callback(mosq:c_ptr(mosquitto), userdata:c_void_ptr, message:c_ptr(mosquitto_message)){
+   
+     var subscriber = userdata:MoschittoSubscriber;
+
+
+    var msg = message.deref();
+    var topic:string = new string(msg.topic:c_string);
+    
+    var data:string = new string(msg.payload:c_string);
+    
+    // writeln("Receiving topic: ",topic);
+    // writeln("Receiving data: ",data);
+
+    subscriber.on_message(topic,data,msg:mosquitto_message);
 
 }
 
@@ -59,10 +72,10 @@ class MoschittoPublisher{
         writeln("Error: Out of memory.\n");
         halt();
       }
-      mosquitto_log_callback_set(this.mosq, c_ptrTo(my_log_callback));
-      mosquitto_connect_callback_set(this.mosq, c_ptrTo(my_connect_callback));
-      mosquitto_message_callback_set(this.mosq, c_ptrTo(my_message_callback));
-      mosquitto_subscribe_callback_set(this.mosq, c_ptrTo(my_subscribe_callback));
+      //mosquitto_log_callback_set(this.mosq, c_ptrTo(my_log_callback));
+      //mosquitto_connect_callback_set(this.mosq, c_ptrTo(my_connect_callback));
+      //mosquitto_message_callback_set(this.mosq, c_ptrTo(my_message_callback));
+      //mosquitto_subscribe_callback_set(this.mosq, c_ptrTo(my_subscribe_callback));
 
       if(mosquitto_connect(this.mosq, this.host.localize().c_str(), this.port:c_int, this.keepalive:c_int)){
         writeln("Unable to connect.");
@@ -91,20 +104,100 @@ class MoschittoPublisher{
      return this.Publish(topic,msg,qos,retain,mid);
    }
 
+   proc on_connect(){
+
+   }
+   proc on_disconnect(){
+
+   }
+   proc on_message(){
+
+   }
+   proc on_publish(){
+
+   }
+   proc on_subscribe(){
+
+   }
+   proc on_unsubscribe(){
+
+   }
+
+}
+
+class MoschittoSubscriber{
+  var host:string;
+  var port:int;
+  var keepalive:int;
+  var clean_session:bool;
+  var mosq:c_ptr(mosquitto);
+  var controllersDom:domain(string);
+  var controllers:[controllersDom]MoschittoControllerInterface;
+ 
+  proc init(host:string="localhost", port:int=1883,keepalive:int=60,clean_session:bool=true){
+    this.host=host;
+    this.port=port;
+    this.keepalive=keepalive;
+    this.clean_session=clean_session;
+    this.mosq=c_nil:c_ptr(mosquitto);
+
+  }
+  proc Connect(){
+      mosquitto_lib_init();
+      this.mosq = mosquitto_new(c_nil:c_string, this.clean_session:c_int,this:c_void_ptr);
+      if(this.mosq==c_nil){
+        writeln("Error: Out of memory.\n");
+        halt();
+      }
+      mosquitto_log_callback_set(this.mosq, c_ptrTo(my_log_callback));
+      mosquitto_connect_callback_set(this.mosq, c_ptrTo(my_connect_callback));
+      mosquitto_message_callback_set(this.mosq, c_ptrTo(my_message_callback));
+      mosquitto_subscribe_callback_set(this.mosq, c_ptrTo(my_subscribe_callback));
+
+      if(mosquitto_connect(this.mosq, this.host.localize().c_str(), this.port:c_int, this.keepalive:c_int)){
+        writeln("Unable to connect.");
+        halt();
+      }   
+   }
+
+   proc Listen(){
+     mosquitto_loop_forever(this.mosq, -1, 1);
+   }
+
+   proc Close(){
+     
+     mosquitto_destroy(this.mosq);
+	   mosquitto_lib_cleanup();
+   }
+
+  proc Subscribe(topic:string, controller:MoschittoController, qos:int=0,mid:c_void_ptr=c_nil){
+    this.controllers[topic]= new MoschittoControllerInterface(controller);
+    mosquitto_subscribe(this.mosq,mid, topic.localize().c_str(),qos:c_int);
+  }
+
+
+  proc on_message(topic:string, data:string, msg:mosquitto_message){
+    if(this.controllersDom.member(topic)){
+        var controller = this.controllers[topic];
+        controller(topic,data,msg);
+    }  
+  }
+
 }
 
 
-class MochittoController{
+
+class MoschittoController{
   proc init(){
 
   }
-  proc this(){
+  proc this(topic:string, data:string, msg:mosquitto_message){
 
   }
 }
 
 class MoschittoControllerInterface{
-  forwarding var controler:MochittoController;
+  forwarding var controler:MoschittoController;
 }
 
 
